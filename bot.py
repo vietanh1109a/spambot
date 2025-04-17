@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 running_processes = {}
 
 # Lấy token từ biến môi trường
-TOKEN = os.environ.get("7974287093:AAGPbhZi8onuloPbu_7c_O6kxaLW87gS-4E")
+TOKEN = os.environ.get("BOT_TOKEN")
 
 # Lấy danh sách nhóm được phép từ biến môi trường hoặc từ file cấu hình
 try:
     # Thử đọc từ biến môi trường trước
-    allowed_groups_str = os.environ.get("-1002541392300")
+    allowed_groups_str = os.environ.get("ALLOWED_GROUPS")
     if allowed_groups_str:
         ALLOWED_GROUPS = json.loads(allowed_groups_str)
     else:
