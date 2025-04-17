@@ -1,17 +1,36 @@
 import subprocess
 import logging
 import threading
+import os
+import json
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, filters
 
+# Cấu hình logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Dictionary để lưu các process đang chạy
 running_processes = {}
 
-# Danh sách ID nhóm được phép sử dụng bot
-# Thay các số này bằng ID thực tế của nhóm bạn
-ALLOWED_GROUPS = [-1002541392300]  # Ví dụ ID nhóm
+# Lấy token từ biến môi trường
+TOKEN = os.environ.get("7974287093:AAGPbhZi8onuloPbu_7c_O6kxaLW87gS-4E")
+
+# Lấy danh sách nhóm được phép từ biến môi trường hoặc từ file cấu hình
+try:
+    # Thử đọc từ biến môi trường trước
+    allowed_groups_str = os.environ.get("-1002541392300")
+    if allowed_groups_str:
+        ALLOWED_GROUPS = json.loads(allowed_groups_str)
+    else:
+        # Nếu không có biến môi trường, thử đọc từ file
+        with open('config.json', 'r') as f:
+            config = json.load(f)
+            ALLOWED_GROUPS = config.get('allowed_groups', [])
+except Exception as e:
+    logger.warning(f"Không thể đọc danh sách nhóm được phép: {str(e)}")
+    # Mặc định nếu không có cấu hình
+    ALLOWED_GROUPS = []
 
 def kill_process_after_timeout(process_id, phone_number):
     process = running_processes.get(process_id)
@@ -23,7 +42,7 @@ def kill_process_after_timeout(process_id, phone_number):
             process.kill()
         if process_id in running_processes:
             del running_processes[process_id]
-        print(f"Đã dừng spam cho số {phone_number} sau 1 phút")
+        logger.info(f"Đã dừng spam cho số {phone_number} sau 1 phút")
 
 # Decorator để kiểm tra nhóm
 def restricted_to_allowed_groups(func):
@@ -32,6 +51,7 @@ def restricted_to_allowed_groups(func):
         
         if chat_id not in ALLOWED_GROUPS:
             await update.message.reply_text('Bot này chỉ hoạt động trong các nhóm được chỉ định.')
+            logger.warning(f"Người dùng từ chat ID {chat_id} đã cố gắng sử dụng bot")
             return
         
         return await func(update, context, *args, **kwargs)
@@ -44,11 +64,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text('Chào bạn! Sử dụng /spam <số điện thoại> để bắt đầu spam.')
     else:
         await update.message.reply_text('Bot này chỉ hoạt động trong các nhóm được chỉ định.')
+        logger.info(f"Lệnh start từ chat không được phép: {chat_id}")
 
 @restricted_to_allowed_groups
 async def spam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not context.args:
-        await update.message.reply_text('Vui lòng cung cấp số điện thoại. Ví dụ: /spam 0123456789')
+        await update.message.reply_text('Vui lòng cung cấp số điện thoại. Ví dụ: /spam 0326992526')
         return
     
     phone_number = context.args[0]
@@ -61,6 +82,7 @@ async def spam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
     
     await update.message.reply_text(f'Đang spam số điện thoại {phone_number}...')
+    logger.info(f"Bắt đầu spam số {phone_number} theo yêu cầu từ user {user_id}")
     
     try:
         # Chạy script
@@ -75,6 +97,7 @@ async def spam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         
     except Exception as e:
         await update.message.reply_text(f'Đã xảy ra lỗi: {str(e)}')
+        logger.error(f"Lỗi khi spam số {phone_number}: {str(e)}")
         if process_id in running_processes:
             del running_processes[process_id]
 
@@ -100,14 +123,27 @@ async def stop_spam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             del running_processes[process_id]
     
     await update.message.reply_text('Đã dừng tất cả các quá trình spam của bạn.')
+    logger.info(f"User {user_id} đã dừng tất cả các quá trình spam")
+
+async def get_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = update.effective_chat.id
+    await update.message.reply_text(f'ID của chat này là: {chat_id}')
+    logger.info(f"Cung cấp ID {chat_id} cho chat")
 
 def main() -> None:
-    application = ApplicationBuilder().token('7974287093:AAGPbhZi8onuloPbu_7c_O6kxaLW87gS-4E').build()
+    if not TOKEN:
+        logger.error("Không tìm thấy BOT_TOKEN trong biến môi trường!")
+        return
+        
+    # Tạo ứng dụng với token từ biến môi trường
+    application = ApplicationBuilder().token(TOKEN).build()
     
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("spam", spam))
     application.add_handler(CommandHandler("stop", stop_spam))
+    application.add_handler(CommandHandler("get_id", get_id))
     
+    logger.info("Bot đã khởi động và đang lắng nghe...")
     application.run_polling()
 
 if __name__ == '__main__':
