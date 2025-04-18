@@ -58,14 +58,6 @@ def restricted_to_allowed_groups(func):
     
     return wrapped
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    chat_id = update.effective_chat.id
-    if chat_id in ALLOWED_GROUPS:
-        await update.message.reply_text('Chào bạn! Sử dụng /spam <số điện thoại> để bắt đầu spam.')
-    else:
-        await update.message.reply_text('Bot này chỉ hoạt động trong các nhóm được chỉ định.')
-        logger.info(f"Lệnh start từ chat không được phép: {chat_id}")
-
 @restricted_to_allowed_groups
 async def spam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not context.args:
@@ -138,7 +130,7 @@ def main() -> None:
     # Tạo ứng dụng với token từ biến môi trường
     application = ApplicationBuilder().token(TOKEN).build()
     
-    application.add_handler(CommandHandler("start", start))
+    # Đã xóa lệnh start ở đây
     application.add_handler(CommandHandler("spam", spam))
     application.add_handler(CommandHandler("stop", stop_spam))
     application.add_handler(CommandHandler("get_id", get_id))
